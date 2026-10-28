@@ -118,13 +118,13 @@ public sealed class DescopeSessionManager : IDisposable
         var session = await _storage.LoadSessionAsync().ConfigureAwait(false);
         if (session != null && IsRefreshTokenExpired(session))
         {
-            bool unchanged;
+            Task? remove = null;
             lock (_loadLock)
             {
-                unchanged = _sessionVersion == version;
+                // start the removal under the lock, so a login or logout that replaces the session runs after it
+                if (_sessionVersion == version) remove = _storage.RemoveSessionAsync();
             }
-            // remove it, unless a login or logout already replaced it
-            if (unchanged) await _storage.RemoveSessionAsync().ConfigureAwait(false);
+            if (remove != null) await remove.ConfigureAwait(false);
             return;
         }
         if (session == null) return;
