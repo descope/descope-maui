@@ -135,6 +135,9 @@ if (session != null)
 }
 ```
 
+A saved session whose refresh token has expired is removed and returned as `null`, since it can't be refreshed.
+After a login or logout, `LoadSessionAsync` returns the current session without reading the storage again.
+
 ### Session refresh
 
 While the app is in the foreground, the session manager checks the session every 30 seconds and refreshes it

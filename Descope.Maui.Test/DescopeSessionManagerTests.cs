@@ -184,6 +184,75 @@ public class DescopeSessionManagerTests
     }
 
     [Fact]
+    public async Task LoadReturnsTheCurrentSessionAfterLogin()
+    {
+        var manager = CreateManager();
+        Assert.Null(await manager.LoadSessionAsync());
+
+        var session = SessionExpiringIn(TimeSpan.FromMinutes(10));
+        await manager.ManageSessionAsync(session);
+
+        Assert.Same(session, await manager.LoadSessionAsync());
+    }
+
+    [Fact]
+    public async Task FailedLoadIsRetried()
+    {
+        var saved = SessionExpiringIn(TimeSpan.FromMinutes(10));
+        _storage.Saved = saved;
+        _storage.LoadError = new InvalidOperationException("errSecInteractionNotAllowed");
+        var manager = CreateManager();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.LoadSessionAsync());
+        _storage.LoadError = null;
+
+        Assert.Same(saved, await manager.LoadSessionAsync());
+    }
+
+    [Fact]
+    public async Task LoginAfterFailedLoadIsNotBlockedByStorage()
+    {
+        _storage.LoadError = new InvalidOperationException("errSecInteractionNotAllowed");
+        var manager = CreateManager();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.LoadSessionAsync());
+
+        var session = SessionExpiringIn(TimeSpan.FromMinutes(10));
+        await manager.ManageSessionAsync(session);
+
+        Assert.Same(session, await manager.LoadSessionAsync());
+        await manager.RefreshSessionIfNeededAsync();
+        Assert.Equal(0, _refreshCount);
+    }
+
+    [Fact]
+    public async Task LoadFinishingAfterLogoutDoesNotRestoreTheSession()
+    {
+        _storage.Saved = SessionExpiringIn(TimeSpan.FromMinutes(10));
+        _storage.LoadGate = new TaskCompletionSource();
+        var manager = CreateManager();
+
+        var load = manager.LoadSessionAsync();
+        await manager.ClearSessionAsync();
+        _storage.LoadGate.SetResult();
+
+        Assert.Null(await load);
+        Assert.Null(manager.Session);
+    }
+
+    [Fact]
+    public async Task SavedSessionWithExpiredRefreshTokenIsRemoved()
+    {
+        _storage.Saved = new DescopeSession(
+            Jwt.Session(_time.GetUtcNow() - TimeSpan.FromDays(31), TimeSpan.FromMinutes(10)),
+            Jwt.Make(_time.GetUtcNow() - TimeSpan.FromDays(1)));
+        var manager = CreateManager();
+
+        Assert.Null(await manager.LoadSessionAsync());
+        Assert.Null(manager.Session);
+        Assert.Null(_storage.Saved);
+    }
+
+    [Fact]
     public async Task RefreshWithoutSessionThrows()
     {
         var ex = await Assert.ThrowsAsync<DescopeException>(() => CreateManager().RefreshSessionAsync());

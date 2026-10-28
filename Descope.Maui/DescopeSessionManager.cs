@@ -32,7 +32,9 @@ public sealed class DescopeSessionManager : IDisposable
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly object _loadLock = new();
     private readonly object _timerLock = new();
-    private Task<DescopeSession?>? _loadTask;
+    private Task? _loadTask;
+    // bumped whenever a session is set or cleared, so a storage load that finishes afterwards doesn't overwrite it
+    private int _sessionVersion;
     private ITimer? _timer;
     private TimeSpan _periodicCheckFrequency = TimeSpan.FromSeconds(30);
 
@@ -79,27 +81,71 @@ public sealed class DescopeSessionManager : IDisposable
     }
 
     /// <summary>
-    /// Restores the session saved by a previous launch. Later calls return the same result
-    /// without reading the storage again.
+    /// Restores the session saved by a previous launch and returns the current session. The storage is
+    /// read once, by the first call to succeed, and not at all after a session is set or cleared. A saved
+    /// session whose refresh token has expired can't be refreshed, so it's removed and treated as no session.
     /// </summary>
-    public Task<DescopeSession?> LoadSessionAsync()
+    public async Task<DescopeSession?> LoadSessionAsync()
+    {
+        Task load;
+        lock (_loadLock)
+        {
+            load = _loadTask ??= LoadCoreAsync();
+        }
+        try
+        {
+            await load.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // don't keep a failed load, such as a keychain error, so the next call reads the storage again
+            lock (_loadLock)
+            {
+                if (_loadTask == load) _loadTask = null;
+            }
+            throw;
+        }
+        return Session;
+    }
+
+    private async Task LoadCoreAsync()
+    {
+        int version;
+        lock (_loadLock)
+        {
+            version = _sessionVersion;
+        }
+        var session = await _storage.LoadSessionAsync().ConfigureAwait(false);
+        if (session != null && IsRefreshTokenExpired(session))
+        {
+            bool unchanged;
+            lock (_loadLock)
+            {
+                unchanged = _sessionVersion == version;
+            }
+            // remove it, unless a login or logout already replaced it
+            if (unchanged) await _storage.RemoveSessionAsync().ConfigureAwait(false);
+            return;
+        }
+        if (session == null) return;
+        lock (_loadLock)
+        {
+            // a session set or cleared while loading wins over the stored one
+            if (_sessionVersion != version) return;
+            Session = session;
+        }
+        ResetTimer();
+    }
+
+    // The session in memory replaces whatever is stored, so a failed or pending load no longer matters
+    private void SetSession(DescopeSession? session)
     {
         lock (_loadLock)
         {
-            return _loadTask ??= LoadCoreAsync();
-        }
-    }
-
-    private async Task<DescopeSession?> LoadCoreAsync()
-    {
-        var session = await _storage.LoadSessionAsync().ConfigureAwait(false);
-        // a session set by a login that finished while loading wins
-        if (Session == null && session != null)
-        {
             Session = session;
-            ResetTimer();
+            _sessionVersion++;
+            if (_loadTask is not { IsCompletedSuccessfully: true }) _loadTask = Task.CompletedTask;
         }
-        return Session;
     }
 
     /// <summary>
@@ -108,7 +154,7 @@ public sealed class DescopeSessionManager : IDisposable
     /// </summary>
     public async Task ManageSessionAsync(DescopeSession session)
     {
-        Session = session;
+        SetSession(session);
         await _storage.SaveSessionAsync(session).ConfigureAwait(false);
         ResetTimer();
         SessionChanged?.Invoke(this, session);
@@ -120,7 +166,7 @@ public sealed class DescopeSessionManager : IDisposable
     /// </summary>
     public async Task ClearSessionAsync()
     {
-        Session = null;
+        SetSession(null);
         await _storage.RemoveSessionAsync().ConfigureAwait(false);
         ResetTimer();
         SessionChanged?.Invoke(this, null);

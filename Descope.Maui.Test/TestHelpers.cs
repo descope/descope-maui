@@ -41,7 +41,19 @@ internal sealed class MemoryStorage : IDescopeSessionStorage
 {
     public DescopeSession? Saved { get; set; }
 
-    public Task<DescopeSession?> LoadSessionAsync() => Task.FromResult(Saved);
+    // thrown by LoadSessionAsync, like a keychain error
+    public Exception? LoadError { get; set; }
+
+    // when set, LoadSessionAsync reads the session and then waits for it, to finish a load after something else happened
+    public TaskCompletionSource? LoadGate { get; set; }
+
+    public async Task<DescopeSession?> LoadSessionAsync()
+    {
+        var saved = Saved;
+        if (LoadGate != null) await LoadGate.Task;
+        if (LoadError != null) throw LoadError;
+        return saved;
+    }
 
     public Task SaveSessionAsync(DescopeSession session)
     {

@@ -141,6 +141,42 @@ public class DescopeClientTests
     }
 
     [Fact]
+    public async Task LogoutAfterLaunchLoadFoundNoSession()
+    {
+        RespondWithTokens();
+        var client = CreateClient();
+        Assert.Null(await client.SessionManager.LoadSessionAsync());
+        var session = await client.LoginAsync();
+        _http.Requests.Clear();
+
+        await client.LogoutAsync();
+
+        var (path, form) = Assert.Single(_http.Requests);
+        Assert.Equal("/oauth2/v1/revoke", path);
+        Assert.Equal(session.RefreshJwt, form["token"]);
+        Assert.Null(client.SessionManager.Session);
+        Assert.Null(_storage.Saved);
+    }
+
+    [Fact]
+    public async Task LogoutRevokesTheCurrentSessionNotTheRestoredOne()
+    {
+        RespondWithTokens();
+        var restored = new DescopeSession(Jwt.Session(_time.GetUtcNow(), TimeSpan.FromMinutes(5)), Jwt.Make(_time.GetUtcNow() + TimeSpan.FromDays(7)));
+        _storage.Saved = restored;
+        var client = CreateClient();
+        Assert.Same(restored, await client.SessionManager.LoadSessionAsync());
+        var current = await client.LoginAsync();
+        Assert.NotEqual(restored.RefreshJwt, current.RefreshJwt);
+        _http.Requests.Clear();
+
+        await client.LogoutAsync();
+
+        Assert.Equal(current.RefreshJwt, Assert.Single(_http.Requests).Form["token"]);
+        Assert.Null(_storage.Saved);
+    }
+
+    [Fact]
     public async Task LogoutClearsSessionEvenWhenRevokeFails()
     {
         RespondWithTokens();
