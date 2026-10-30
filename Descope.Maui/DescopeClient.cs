@@ -92,15 +92,21 @@ public class DescopeClient
     /// <param name="cancellationToken">Cancels the revoke request.</param>
     public async Task LogoutAsync(bool endBrowserSession = false, CancellationToken cancellationToken = default)
     {
-        var session = await SessionManager.LoadSessionAsync().ConfigureAwait(false);
-        if (session == null) return;
-        try
+        await SessionManager.LoadSessionAsync().ConfigureAwait(false);
+        DescopeSession? session;
+        // a refresh in progress might rotate the refresh token, so wait for it and revoke the newest one
+        using (await SessionManager.BlockRefreshesAsync(cancellationToken).ConfigureAwait(false))
         {
-            await _oidc.RevokeAsync(session.RefreshJwt, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            await SessionManager.ClearSessionAsync().ConfigureAwait(false);
+            session = SessionManager.Session;
+            if (session == null) return;
+            try
+            {
+                await _oidc.RevokeAsync(session.RefreshJwt, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                await SessionManager.ClearSessionAsync().ConfigureAwait(false);
+            }
         }
         if (endBrowserSession)
         {

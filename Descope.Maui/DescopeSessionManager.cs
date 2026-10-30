@@ -195,6 +195,24 @@ public sealed class DescopeSessionManager : IDisposable
         return await RefreshAsync(current, cancellationToken).ConfigureAwait(false);
     }
 
+    // Waits for a refresh in progress and blocks new ones until the result is disposed. A logout uses this so it
+    // revokes the newest refresh token, and a refresh can't rotate it while it's being revoked.
+    internal async Task<IDisposable> BlockRefreshesAsync(CancellationToken cancellationToken)
+    {
+        await _refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return new RefreshBlock(_refreshLock);
+    }
+
+    private sealed class RefreshBlock(SemaphoreSlim refreshLock) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0) refreshLock.Release();
+        }
+    }
+
     internal bool ShouldRefresh(DescopeSession session)
     {
         var now = _timeProvider.GetUtcNow();

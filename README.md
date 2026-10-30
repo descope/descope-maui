@@ -5,13 +5,14 @@
 SDK stores, refreshes and clears their session.
 
 > **Status: Phase 1 preview.** Hosted flows through the system browser on iOS and Android.
-> Native (embedded) flows, passkeys, Mac Catalyst and Windows are not supported yet.
+> Native (embedded) flows, Mac Catalyst and Windows are not supported yet. Magic links have limitations, see
+> [Magic links](#magic-links).
 
 ## Requirements
 
 - .NET 10 with the `net10.0-ios` and/or `net10.0-android` target frameworks
 - iOS 15+ / Android 5.0 (API 21)+
-- A Descope project. Add your redirect URI (e.g. `myapp://auth`) to the project's approved domains or redirect URLs.
+- A Descope project that accepts your redirect URI (e.g. `myapp://auth`), see [Allow the redirect URI](#4-allow-the-redirect-uri)
 
 ## Installation
 
@@ -83,8 +84,8 @@ On Android 11+, the app also needs to be able to see the browser. Add this to `P
 
 ### 3. iOS
 
-You don't need to register a URL scheme. The flow runs in `ASWebAuthenticationSession`, which receives the
-redirect itself.
+The flow runs in `ASWebAuthenticationSession`, which receives the redirect itself, so for most flows you don't need
+to register a URL scheme. Flows with magic links need one, see [Magic links](#magic-links).
 
 The session is stored with `SecureStorage`, so on the iOS simulator the app needs a keychain access group, or
 saving the session fails after sign in. Add `Platforms/iOS/Entitlements.plist`:
@@ -101,6 +102,17 @@ saving the session fails after sign in. Add `Platforms/iOS/Entitlements.plist`:
 </dict>
 </plist>
 ```
+
+### 4. Allow the redirect URI
+
+Descope only redirects back to the app when it accepts the redirect URI:
+
+- If the OIDC application has approved redirect URLs, add the full redirect URI, e.g. `myapp://auth`.
+- Otherwise the project's approved domains are checked, if it has any. A custom scheme doesn't match a domain
+  entry such as `example.com`, so add the full redirect URI there.
+
+`LogoutAsync(endBrowserSession: true)` also sends the redirect URI to Descope, as the post-logout redirect. That's
+always checked against the project's approved domains, so add it there too if the project has any.
 
 ## Usage
 
@@ -124,6 +136,39 @@ catch (DescopeException ex) when (ex.Code == DescopeErrorCode.Cancelled)
 ```
 
 Extra query parameters (for example `dynamic_val`, read by a flow scriptlet) go in `DescopeLoginOptions.AdditionalParameters`.
+
+The flow runs in the system browser, so authentication methods that finish in that browser, such as OTP codes and
+passkeys, work. Passkeys are registered for the flow page's domain (`api.descope.com` or your custom domain), not
+your app's.
+
+#### Magic links
+
+The emailed link opens in the device's browser, outside the sign-in session. When the flow finishes there, the
+browser redirects to the redirect URI, and the operating system has to open your app with it:
+
+- On iOS, register the redirect URI's scheme in `Platforms/iOS/Info.plist`:
+
+  ```xml
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.example.myapp</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>myapp</string>
+      </array>
+    </dict>
+  </array>
+  ```
+
+  Safari asks the user to open the app, and `LoginAsync` then completes. The sign-in sheet isn't closed
+  automatically when this happens, so the user closes it to see the signed in app.
+- On Android, `DescopeCallbackActivity` is already registered for the scheme. This hasn't been tested yet.
+
+Either way, the app has to still be running with `LoginAsync` waiting, since it holds the values that complete the
+sign in, and the link has to be opened on the same device. If that's a problem, use OTP codes or enchanted links,
+which finish in the original sign-in page.
 
 ### Restore the session on launch
 

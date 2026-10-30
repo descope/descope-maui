@@ -264,6 +264,58 @@ public class DescopeClientTests
     }
 
     [Fact]
+    public async Task RefreshUsesRotatedRefreshTokenUntilLogout()
+    {
+        RespondWithTokens();
+        var client = CreateClient();
+        await client.LoginAsync();
+        var rotated = Jwt.Make(_time.GetUtcNow() + TimeSpan.FromDays(20));
+        _http.Respond = (path, _) => Task.FromResult(path.EndsWith("/token")
+            ? FakeHttpHandler.Json(new { access_token = Jwt.Session(_time.GetUtcNow(), TimeSpan.FromMinutes(10)), refresh_token = rotated })
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var refreshed = await client.RefreshSessionAsync();
+        _http.Requests.Clear();
+        await client.LogoutAsync();
+
+        Assert.Equal(rotated, refreshed.RefreshJwt);
+        Assert.Equal(rotated, Assert.Single(_http.Requests).Form["token"]);
+    }
+
+    [Fact]
+    public async Task LogoutWaitsForRefreshInProgressAndRevokesTheRotatedToken()
+    {
+        RespondWithTokens();
+        var client = CreateClient();
+        await client.LoginAsync();
+        var rotated = Jwt.Make(_time.GetUtcNow() + TimeSpan.FromDays(20));
+        var refreshStarted = new TaskCompletionSource();
+        var refreshGate = new TaskCompletionSource();
+        _http.Respond = async (path, _) =>
+        {
+            if (!path.EndsWith("/token")) return new HttpResponseMessage(HttpStatusCode.OK);
+            refreshStarted.SetResult();
+            await refreshGate.Task;
+            return FakeHttpHandler.Json(new { access_token = Jwt.Session(_time.GetUtcNow(), TimeSpan.FromMinutes(10)), refresh_token = rotated });
+        };
+        _http.Requests.Clear();
+
+        var refresh = client.RefreshSessionAsync();
+        await refreshStarted.Task;
+        var logout = client.LogoutAsync();
+        await Task.Delay(50);
+        Assert.False(logout.IsCompleted);
+        refreshGate.SetResult();
+        await refresh;
+        await logout;
+
+        var revoke = Assert.Single(_http.Requests, r => r.Path == "/oauth2/v1/revoke");
+        Assert.Equal(rotated, revoke.Form["token"]);
+        Assert.Null(client.SessionManager.Session);
+        Assert.Null(_storage.Saved);
+    }
+
+    [Fact]
     public async Task RefreshSessionKeepsRefreshTokenWhenNotRotated()
     {
         RespondWithTokens();
