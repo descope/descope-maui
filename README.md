@@ -111,8 +111,19 @@ Descope only redirects back to the app when it accepts the redirect URI:
 - Otherwise the project's approved domains are checked, if it has any. A custom scheme doesn't match a domain
   entry such as `example.com`, so add the full redirect URI there.
 
+Wildcards don't work for the redirect URI, so add the exact URI the app uses. If it uses more than one, for
+example a different one per platform, add each of them.
+
 `LogoutAsync(endBrowserSession: true)` also sends the redirect URI to Descope, as the post-logout redirect. That's
 always checked against the project's approved domains, so add it there too if the project has any.
+
+If the project has **Apply Trusted Domains on Flow Execution** enabled, also add the domain the flow is hosted on
+to the approved domains: `api.descope.com` for flows hosted by Descope, or your custom domain. Otherwise Descope
+rejects the flow with "Forbidden origin" and the sign-in page stays blank. For example:
+
+```text
+example.com, api.descope.com, myapp://auth
+```
 
 ## Usage
 
