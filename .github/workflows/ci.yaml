@@ -1,0 +1,41 @@
+name: dotnet package
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    # macOS so the iOS target builds; the runner image also has the Android SDK and JDK
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.x.x
+      - name: Install workloads
+        run: dotnet workload install ios android
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Build with dotnet
+        run: dotnet build --no-restore --configuration Release
+      - name: Test with dotnet
+        run: dotnet test --no-build --configuration Release --logger trx --results-directory "TestResults"
+      - name: Pack
+        run: dotnet pack --no-build --configuration Release Descope.Maui
+
+      - name: Post test results to GitHub
+        uses: dorny/test-reporter@d1b5dff021aa968b288b02285a8bf47471c5928a # v3.2.0
+        if: always()
+        with:
+          name: .NET Tests
+          path: TestResults/**/*.trx
+          reporter: dotnet-trx
