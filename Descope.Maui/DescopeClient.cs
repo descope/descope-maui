@@ -95,7 +95,7 @@ public class DescopeClient
         await SessionManager.LoadSessionAsync().ConfigureAwait(false);
         DescopeSession? session;
         // a refresh in progress might rotate the refresh token, so wait for it and revoke the newest one
-        using (await SessionManager.BlockRefreshesAsync(cancellationToken).ConfigureAwait(false))
+        using (await SessionManager.BlockRefreshesAsync(CancellationToken.None).ConfigureAwait(false))
         {
             session = SessionManager.Session;
             if (session == null) return;
