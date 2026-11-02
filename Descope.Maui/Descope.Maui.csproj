@@ -6,7 +6,7 @@
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <PackageId>Descope.Maui</PackageId>
     <Title>Descope .NET MAUI SDK</Title>
     <Description>The Descope SDK for .NET MAUI signs users in with Descope Flows through the system
@@ -29,15 +29,15 @@
   </PropertyGroup>
 
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'android'">
-    <Compile Remove="Platforms\Android\**" />
+    <Compile Remove="Platforms\Android\**"/>
   </ItemGroup>
 
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'ios'">
-    <Compile Remove="Platforms\iOS\**" />
+    <Compile Remove="Platforms\iOS\**"/>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../README.md" Pack="true" PackagePath="\" />
+    <None Include="../README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -47,8 +47,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.120" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.120"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14"/>
   </ItemGroup>
 
 </Project>
