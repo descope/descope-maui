@@ -10,7 +10,7 @@ namespace Descope.Maui;
 /// <code>
 /// var api = new HttpClient(new DescopeAuthorizationHandler(descope.SessionManager, "api.example.com") { InnerHandler = new HttpClientHandler() });
 /// </code>
-/// Requests to other hosts, or sent when no user is signed in, have no <c>Authorization</c> header.
+/// Requests to other hosts, over plain http, or sent when no user is signed in, have no <c>Authorization</c> header.
 /// </remarks>
 public class DescopeAuthorizationHandler(DescopeSessionManager sessionManager, params string[] hosts) : DelegatingHandler
 {
@@ -19,7 +19,7 @@ public class DescopeAuthorizationHandler(DescopeSessionManager sessionManager, p
     /// <inheritdoc/>
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (_hosts.Contains(request.RequestUri?.Host, StringComparer.OrdinalIgnoreCase))
+        if (request.RequestUri?.Scheme == Uri.UriSchemeHttps && _hosts.Contains(request.RequestUri.Host, StringComparer.OrdinalIgnoreCase))
         {
             await sessionManager.RefreshSessionIfNeededAsync(cancellationToken).ConfigureAwait(false);
             if (sessionManager.Session is { } session)

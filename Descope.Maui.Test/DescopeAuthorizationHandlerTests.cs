@@ -12,13 +12,13 @@ public class DescopeAuthorizationHandlerTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Authorization[request.RequestUri!.Host] = request.Headers.Authorization?.ToString();
+            Authorization[request.RequestUri!.GetLeftPart(UriPartial.Authority)] = request.Headers.Authorization?.ToString();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }
 
     [Fact]
-    public async Task SendsTheSessionJwtOnlyToTheGivenHosts()
+    public async Task SendsTheSessionJwtOnlyToTheGivenHostsOverHttps()
     {
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var manager = new DescopeSessionManager(new MemoryStorage(), (_, _) => Task.FromResult(new TokenResponse(null, null, null)), time, new FakeAppLifecycle());
@@ -28,10 +28,12 @@ public class DescopeAuthorizationHandlerTests
         var client = new HttpClient(new DescopeAuthorizationHandler(manager, "API.example.com") { InnerHandler = inner });
 
         await client.GetAsync("https://api.example.com/me");
+        await client.GetAsync("http://api.example.com/me");
         await client.GetAsync("https://other.example.net/collect");
 
-        Assert.Equal($"Bearer {session.SessionJwt}", inner.Authorization["api.example.com"]);
-        Assert.Null(inner.Authorization["other.example.net"]);
+        Assert.Equal($"Bearer {session.SessionJwt}", inner.Authorization["https://api.example.com"]);
+        Assert.Null(inner.Authorization["http://api.example.com"]);
+        Assert.Null(inner.Authorization["https://other.example.net"]);
     }
 
     [Fact]
