@@ -82,6 +82,10 @@ public class DescopeOptions
         {
             throw new DescopeException(DescopeErrorCode.InvalidConfiguration, "DescopeOptions.RedirectUri must be an absolute URI, e.g. myapp://auth");
         }
+        if (BaseUrl != null && !(Uri.TryCreate(BaseUrl, UriKind.Absolute, out var baseUrl) && baseUrl.Scheme == Uri.UriSchemeHttps))
+        {
+            throw new DescopeException(DescopeErrorCode.InvalidConfiguration, "DescopeOptions.BaseUrl must be an https URL");
+        }
     }
 
     // Project IDs created in a non-US region embed the region code after the first character

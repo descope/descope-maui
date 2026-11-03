@@ -56,14 +56,15 @@ public class DescopeClient
 
         var result = await AuthenticateAsync(url, cancellationToken).ConfigureAwait(false);
 
+        // check the state first, so another app can't end the login with a forged error redirect
+        if (!result.TryGetValue("state", out var returnedState) || returnedState != state)
+        {
+            throw new DescopeException(DescopeErrorCode.StateMismatch, "The state returned by the flow doesn't match the request");
+        }
         if (result.TryGetValue("error", out var error))
         {
             result.TryGetValue("error_description", out var description);
             throw new DescopeException(DescopeErrorCode.FlowFailed, description ?? $"The flow failed with {error}", error);
-        }
-        if (!result.TryGetValue("state", out var returnedState) || returnedState != state)
-        {
-            throw new DescopeException(DescopeErrorCode.StateMismatch, "The state returned by the flow doesn't match the request");
         }
         if (!result.TryGetValue("code", out var code) || string.IsNullOrEmpty(code))
         {

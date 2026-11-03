@@ -210,10 +210,11 @@ descope.SessionManager.PeriodicCheckFrequency = TimeSpan.Zero;           // or t
 ### Call your backend
 
 The session manager refreshes the session JWT shortly before it expires. Before calling your backend, call
-`RefreshSessionIfNeededAsync`, or use `DescopeAuthorizationHandler` to do it for every request:
+`RefreshSessionIfNeededAsync`, or use `DescopeAuthorizationHandler` to do it for requests to your backend. Pass the
+hosts that may receive the session JWT, so it's never sent anywhere else:
 
 ```csharp
-var api = new HttpClient(new DescopeAuthorizationHandler(descope.SessionManager)
+var api = new HttpClient(new DescopeAuthorizationHandler(descope.SessionManager, "api.example.com")
 {
     InnerHandler = new HttpClientHandler(),
 });

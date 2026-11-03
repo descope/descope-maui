@@ -20,7 +20,7 @@ namespace Descope.Maui;
 /// it returns. Network errors are retried on the next check, but any other failure, such as a rejected
 /// refresh token, stops the checks until the session changes or the app returns to the foreground.
 /// Call <see cref="RefreshSessionIfNeededAsync"/> before calling your backend, or use
-/// <see cref="DescopeAuthorizationHandler"/> to do it for every request.
+/// <see cref="DescopeAuthorizationHandler"/> to do it for requests to your backend.
 /// </para>
 /// </remarks>
 public sealed class DescopeSessionManager : IDisposable
