@@ -17,8 +17,8 @@ namespace Descope.Maui;
 /// While the app is in the foreground, every <see cref="PeriodicCheckFrequency"/> (30 seconds by default)
 /// the manager refreshes the session if its JWT expires within <see cref="RefreshTriggerInterval"/>
 /// (60 seconds by default). The check pauses while the app is in the background and runs right away when
-/// it returns. Network errors are retried on the next check, but any other failure, such as a rejected
-/// refresh token, stops the checks until the session changes or the app returns to the foreground.
+/// it returns. Network errors are retried on the next check. A refresh token rejected by Descope clears the
+/// session. Any other failure stops the checks until the session changes or the app returns to the foreground.
 /// Call <see cref="RefreshSessionIfNeededAsync"/> before calling your backend, or use
 /// <see cref="DescopeAuthorizationHandler"/> to do it for requests to your backend.
 /// </para>
@@ -240,7 +240,17 @@ public sealed class DescopeSessionManager : IDisposable
                 return Session;
             }
 
-            var tokens = await _refresh(current.RefreshJwt, cancellationToken).ConfigureAwait(false);
+            Internal.TokenResponse tokens;
+            try
+            {
+                tokens = await _refresh(current.RefreshJwt, cancellationToken).ConfigureAwait(false);
+            }
+            catch (DescopeException ex) when (ex.OAuthError == "invalid_grant")
+            {
+                // the refresh token was revoked or has expired, so the session can't be used again
+                if (Session?.SessionJwt == current.SessionJwt) await ClearSessionAsync().ConfigureAwait(false);
+                throw;
+            }
             var updated = current.WithUpdatedTokens(tokens.AccessToken!, tokens.RefreshToken, tokens.IdToken);
 
             // don't resurrect a session that was cleared or replaced during the request

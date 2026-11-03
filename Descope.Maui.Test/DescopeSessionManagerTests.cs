@@ -58,6 +58,35 @@ public class DescopeSessionManagerTests
     }
 
     [Fact]
+    public async Task ClearsSessionWhenRefreshTokenIsRejected()
+    {
+        var manager = CreateManager();
+        await manager.ManageSessionAsync(SessionExpiringIn(TimeSpan.FromSeconds(30)));
+        DescopeSession? changed = manager.Session;
+        manager.SessionChanged += (_, s) => changed = s;
+        _refreshError = new DescopeException(DescopeErrorCode.ServerError, "Descope returned 400 invalid_grant", "invalid_grant");
+
+        await Assert.ThrowsAsync<DescopeException>(() => manager.RefreshSessionIfNeededAsync());
+
+        Assert.Null(manager.Session);
+        Assert.Null(_storage.Saved);
+        Assert.Null(changed);
+    }
+
+    [Fact]
+    public async Task KeepsSessionOnOtherRefreshErrors()
+    {
+        var manager = CreateManager();
+        var session = SessionExpiringIn(TimeSpan.FromSeconds(30));
+        await manager.ManageSessionAsync(session);
+        _refreshError = new DescopeException(DescopeErrorCode.ServerError, "Descope returned 500");
+
+        await Assert.ThrowsAsync<DescopeException>(() => manager.RefreshSessionIfNeededAsync());
+
+        Assert.Same(session, manager.Session);
+    }
+
+    [Fact]
     public async Task RefreshIfNeededSkipsFreshSession()
     {
         var manager = CreateManager();
@@ -150,9 +179,9 @@ public class DescopeSessionManagerTests
     }
 
     [Fact]
-    public async Task PeriodicCheckStopsAfterRejectedRefreshUntilResume()
+    public async Task PeriodicCheckStopsAfterFailedRefreshUntilResume()
     {
-        _refreshError = new DescopeException(DescopeErrorCode.ServerError, "Descope returned 400 invalid_grant", "invalid_grant");
+        _refreshError = new DescopeException(DescopeErrorCode.ServerError, "Descope returned 500");
         var lifecycle = new FakeAppLifecycle();
         var manager = new DescopeSessionManager(_storage, RefreshAsync, _time, lifecycle);
         await manager.ManageSessionAsync(SessionExpiringIn(TimeSpan.FromSeconds(30)));
@@ -168,6 +197,18 @@ public class DescopeSessionManagerTests
         lifecycle.Set(true);
         await WaitUntil(() => _refreshCount == 2);
         Assert.NotNull(manager.Session);
+    }
+
+    [Fact]
+    public async Task PeriodicCheckClearsSessionAfterRejectedRefreshToken()
+    {
+        _refreshError = new DescopeException(DescopeErrorCode.ServerError, "Descope returned 400 invalid_grant", "invalid_grant");
+        var manager = new DescopeSessionManager(_storage, RefreshAsync, _time, new FakeAppLifecycle());
+        await manager.ManageSessionAsync(SessionExpiringIn(TimeSpan.FromSeconds(30)));
+
+        _time.Advance(TimeSpan.FromSeconds(30));
+        await WaitUntil(() => manager.Session == null);
+        Assert.Null(_storage.Saved);
     }
 
     [Fact]

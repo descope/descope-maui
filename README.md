@@ -114,6 +114,10 @@ Descope only redirects back to the app when it accepts the redirect URI:
 Wildcards don't work for the redirect URI, so add the exact URI the app uses. If it uses more than one, for
 example a different one per platform, add each of them.
 
+Any app on the device can register the same custom scheme and receive the redirect. The authorization code it gets
+is useless without the PKCE verifier, which never leaves your app, but for stronger protection use an `https`
+redirect URI with Android App Links and iOS Universal Links.
+
 `LogoutAsync(endBrowserSession: true)` also sends the redirect URI to Descope, as the post-logout redirect. That's
 always checked against the project's approved domains, so add it there too if the project has any.
 
@@ -198,9 +202,10 @@ After a login or logout, `LoadSessionAsync` returns the current session without 
 
 While the app is in the foreground, the session manager checks the session every 30 seconds and refreshes it
 when its JWT expires within 60 seconds. The check pauses while the app is in the background and runs right away
-when it returns. A network error is retried on the next check. Any other failure, such as a refresh token that
-was revoked, stops the checks until a new session is set or the app returns to the foreground. The session isn't
-cleared, so the app sees the error the next time it refreshes the session itself.
+when it returns. A network error is retried on the next check. If Descope rejects the refresh token
+(`invalid_grant`), for example because it was revoked or has expired, the session is cleared and `SessionChanged`
+is raised with `null`. Any other failure stops the checks until a new session is set or the app returns to the
+foreground, and the app sees the error the next time it refreshes the session itself.
 
 ```csharp
 descope.SessionManager.RefreshTriggerInterval = TimeSpan.FromMinutes(2); // refresh earlier
@@ -264,7 +269,8 @@ Pass your own implementations to the `DescopeClient` constructor:
 - `IDescopeSessionStorage`: where the session is persisted. The default, `SecureSessionStorage`, uses MAUI `SecureStorage`
   (Keychain / Keystore). On Android, exclude `SecureStorage` from auto backup, as described in the MAUI docs.
 - `IDescopeBrowser`: how the flow URL is opened. The default uses MAUI `WebAuthenticator`.
-- `HttpClient`: used for the token, refresh and revoke requests.
+- `HttpClient`: used for the token, refresh and revoke requests. Pass one with your own handler to add certificate
+  pinning.
 
 ## Development
 
