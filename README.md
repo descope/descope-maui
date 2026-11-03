@@ -175,7 +175,7 @@ browser redirects to the redirect URI, and the operating system has to open your
 
   Safari asks the user to open the app, and `LoginAsync` then completes. The sign-in sheet isn't closed
   automatically when this happens, so the user closes it to see the signed in app.
-- On Android, `DescopeCallbackActivity` is already registered for the scheme. This hasn't been tested yet.
+- On Android, `DescopeCallbackActivity` is already registered for the scheme.
 
 Either way, the app has to still be running with `LoginAsync` waiting, since it holds the values that complete the
 sign in, and the link has to be opened on the same device. If that's a problem, use OTP codes or enchanted links,

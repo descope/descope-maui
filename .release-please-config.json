@@ -4,7 +4,6 @@
     "packages": {
         ".": {
             "package-name": "Descope.Maui",
-            "release-as": "1.0.0",
             "extra-files": [
                 {
                     "type": "xml",
