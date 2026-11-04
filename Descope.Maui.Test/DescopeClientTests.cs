@@ -92,13 +92,28 @@ public class DescopeClientTests
     [Fact]
     public async Task LoginReportsFlowError()
     {
-        _browser.Respond = _ => new Dictionary<string, string> { ["error"] = "access_denied", ["error_description"] = "User denied" };
+        _browser.Respond = url => new Dictionary<string, string>
+        {
+            ["error"] = "access_denied",
+            ["error_description"] = "User denied",
+            ["state"] = FakeBrowser.QueryParam(url, "state")!,
+        };
 
         var ex = await Assert.ThrowsAsync<DescopeException>(() => CreateClient().LoginAsync());
 
         Assert.Equal(DescopeErrorCode.FlowFailed, ex.Code);
         Assert.Equal("access_denied", ex.OAuthError);
         Assert.Equal("User denied", ex.Message);
+    }
+
+    [Fact]
+    public async Task LoginIgnoresErrorRedirectWithoutMatchingState()
+    {
+        _browser.Respond = _ => new Dictionary<string, string> { ["error"] = "access_denied", ["error_description"] = "forged" };
+
+        var ex = await Assert.ThrowsAsync<DescopeException>(() => CreateClient().LoginAsync());
+
+        Assert.Equal(DescopeErrorCode.StateMismatch, ex.Code);
     }
 
     [Fact]

@@ -37,4 +37,16 @@ public class DescopeOptionsTests
     {
         Assert.Null(DescopeOptions.AppIdFromClientId(clientId, "P2abcdefghijklmnopqrstuvwxyz"));
     }
+
+    [Theory]
+    [InlineData("http://auth.example.com")]
+    [InlineData("auth.example.com")]
+    public void RejectsBaseUrlThatIsNotHttps(string baseUrl)
+    {
+        var options = new DescopeOptions { ProjectId = "P2abcdefghijklmnopqrstuvwxyz", RedirectUri = "myapp://auth", BaseUrl = baseUrl };
+
+        var ex = Assert.Throws<DescopeException>(options.Validate);
+
+        Assert.Equal(DescopeErrorCode.InvalidConfiguration, ex.Code);
+    }
 }
