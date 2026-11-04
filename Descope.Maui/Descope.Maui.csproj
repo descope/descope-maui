@@ -6,7 +6,7 @@
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <PackageId>Descope.Maui</PackageId>
     <Title>Descope .NET MAUI SDK</Title>
     <Description>The Descope SDK for .NET MAUI signs users in with Descope Flows through the system
