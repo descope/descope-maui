@@ -32,12 +32,13 @@ public class DescopeClient
     {
     }
 
-    internal DescopeClient(DescopeOptions options, IDescopeSessionStorage? storage, IDescopeBrowser? browser, HttpClient? httpClient, TimeProvider timeProvider)
+    internal DescopeClient(DescopeOptions options, IDescopeSessionStorage? storage, IDescopeBrowser? browser, HttpClient? httpClient, TimeProvider timeProvider, SystemInfo? systemInfo = null)
     {
         options.Validate();
         _options = options;
         _browser = browser ?? new WebAuthenticatorBrowser();
-        _oidc = new OidcClient(options, httpClient ?? new HttpClient());
+        // the app, OS and device details sent in the x-descope-* headers, read once per app run
+        _oidc = new OidcClient(options, httpClient ?? new HttpClient(), systemInfo ?? SystemInfo.Current);
         SessionManager = new DescopeSessionManager(storage ?? new SecureSessionStorage(options.ProjectId), _oidc.RefreshAsync, timeProvider);
     }
 

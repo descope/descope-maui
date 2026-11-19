@@ -97,6 +97,9 @@ internal sealed class FakeHttpHandler : HttpMessageHandler
 {
     public List<(string Path, Dictionary<string, string> Form)> Requests { get; } = [];
 
+    // the headers of every request sent
+    public List<Dictionary<string, string>> Headers { get; } = [];
+
     public Func<string, Dictionary<string, string>, Task<HttpResponseMessage>> Respond { get; set; } =
         (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -109,6 +112,7 @@ internal sealed class FakeHttpHandler : HttpMessageHandler
         lock (Requests)
         {
             Requests.Add((request.RequestUri!.AbsolutePath, form));
+            Headers.Add(request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value)));
         }
         return await Respond(request.RequestUri!.AbsolutePath, form);
     }
