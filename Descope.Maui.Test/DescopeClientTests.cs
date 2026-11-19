@@ -1,4 +1,5 @@
 using System.Net;
+using Descope.Maui.Internal;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Descope.Maui.Test;
@@ -139,6 +140,44 @@ public class DescopeClientTests
     }
 
     [Fact]
+    public async Task EveryRequestSendsDescopeHeaders()
+    {
+        RespondWithTokens();
+        var systemInfo = new SystemInfo("ios", "18.1", "My App", "2.0.1.42", "iPhone17,2");
+        var client = new DescopeClient(_options, _storage, _browser, new HttpClient(_http), _time, systemInfo);
+
+        await client.LoginAsync();
+        await client.SessionManager.RefreshSessionAsync();
+        await client.LogoutAsync();
+
+        Assert.Equal(["/oauth2/v1/token", "/oauth2/v1/token", "/oauth2/v1/revoke"], _http.Requests.Select(r => r.Path));
+        Assert.All(_http.Headers, headers =>
+        {
+            Assert.Equal("maui", headers["x-descope-sdk-name"]);
+            Assert.Matches(@"^\d+\.\d+\.\d+", headers["x-descope-sdk-version"]);
+            Assert.DoesNotContain("+", headers["x-descope-sdk-version"]);
+            Assert.Equal(Jwt.ProjectId, headers["x-descope-project-id"]);
+            Assert.Equal("ios", headers["x-descope-platform-name"]);
+            Assert.Equal("18.1", headers["x-descope-platform-version"]);
+            Assert.Equal("My App", headers["x-descope-app-name"]);
+            Assert.Equal("2.0.1.42", headers["x-descope-app-version"]);
+            Assert.Equal("iPhone17,2", headers["x-descope-device"]);
+        });
+    }
+
+    [Fact]
+    public async Task UnknownSystemValuesAreLeftOut()
+    {
+        RespondWithTokens();
+        var client = new DescopeClient(_options, _storage, _browser, new HttpClient(_http), _time, new SystemInfo(null, "", " ", null, null));
+
+        await client.LoginAsync();
+
+        var headers = Assert.Single(_http.Headers);
+        Assert.Equal(["x-descope-project-id", "x-descope-sdk-name", "x-descope-sdk-version"], headers.Keys.Where(k => k.StartsWith("x-descope-")).Order());
+    }
+
+    [Fact]
     public async Task LogoutRevokesRefreshTokenAndClearsSession()
     {
         RespondWithTokens();
@@ -151,6 +190,7 @@ public class DescopeClientTests
         var (path, form) = Assert.Single(_http.Requests);
         Assert.Equal("/oauth2/v1/revoke", path);
         Assert.Equal(session.RefreshJwt, form["token"]);
+        Assert.Equal("refresh_token", form["token_type_hint"]);
         Assert.Null(client.SessionManager.Session);
         Assert.Null(_storage.Saved);
     }
@@ -169,6 +209,7 @@ public class DescopeClientTests
         var (path, form) = Assert.Single(_http.Requests);
         Assert.Equal("/oauth2/v1/revoke", path);
         Assert.Equal(session.RefreshJwt, form["token"]);
+        Assert.Equal("refresh_token", form["token_type_hint"]);
         Assert.Null(client.SessionManager.Session);
         Assert.Null(_storage.Saved);
     }

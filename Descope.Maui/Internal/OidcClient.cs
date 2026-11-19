@@ -9,8 +9,10 @@ internal sealed record TokenResponse(
     [property: JsonPropertyName("id_token")] string? IdToken);
 
 // The Descope OIDC endpoints, see https://docs.descope.com/getting-started/oidc-endpoints
-internal sealed class OidcClient(DescopeOptions options, HttpClient httpClient)
+internal sealed class OidcClient(DescopeOptions options, HttpClient httpClient, SystemInfo systemInfo)
 {
+    private readonly KeyValuePair<string, string>[] _headers = systemInfo.Headers(options.ProjectId);
+
     // Parameters the SDK sets itself, which login options can't override
     private static readonly HashSet<string> ReservedParameters =
         ["response_type", "client_id", "redirect_uri", "scope", "state", "code_challenge", "code_challenge_method"];
@@ -87,6 +89,8 @@ internal sealed class OidcClient(DescopeOptions options, HttpClient httpClient)
         using var response = await PostAsync($"{BaseUrl}/oauth2/v1/revoke", new Dictionary<string, string>
         {
             ["token"] = token,
+            // optional in RFC 7009, but Descope rejects a revoke without it
+            ["token_type_hint"] = "refresh_token",
             ["client_id"] = options.ResolvedClientId,
         }, cancellationToken).ConfigureAwait(false);
         await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
@@ -117,8 +121,10 @@ internal sealed class OidcClient(DescopeOptions options, HttpClient httpClient)
     {
         try
         {
-            using var content = new FormUrlEncodedContent(form);
-            return await httpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+            // set on each request rather than on the client, which may be the app's own
+            using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(form) };
+            foreach (var (name, value) in _headers) request.Headers.TryAddWithoutValidation(name, value);
+            return await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
