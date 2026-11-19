@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/descope/descope-maui/compare/Descope.Maui-v1.1.0...Descope.Maui-v1.2.0) (2026-11-19)
+
+
+### Features
+
+* identify MAUI requests with x-descope headers and fix logout revocation ([#8](https://github.com/descope/descope-maui/issues/8)) ([e0fde54](https://github.com/descope/descope-maui/commit/e0fde540e76be328036518a72ea10460a67a1399))
+
 ## [1.1.0](https://github.com/descope/descope-maui/compare/Descope.Maui-v1.0.0...Descope.Maui-v1.1.0) (2026-11-04)
 
 
